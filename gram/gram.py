@@ -5,7 +5,7 @@
 
 import sys, random, time, argparse
 from collections import OrderedDict
-import cPickle as pickle
+import pickle
 import numpy as np
 
 import theano
@@ -18,7 +18,7 @@ _VALIDATION_RATIO = 0.1
 
 def unzip(zipped):
     new_params = OrderedDict()
-    for key, value in zipped.iteritems():
+    for key, value in zipped.items():
         new_params[key] = value.get_value()
     return new_params
 
@@ -65,7 +65,7 @@ def init_params(options):
 
 def init_tparams(params):
     tparams = OrderedDict()
-    for key, value in params.iteritems():
+    for key, value in params.items():
         tparams[key] = theano.shared(value, name=key)
     return tparams
 
@@ -204,9 +204,9 @@ def load_data(seqFile, labelFile, timeFile=''):
     return train_set, valid_set, test_set
 
 def adadelta(tparams, grads, x, y, mask, lengths, cost):
-    zipped_grads = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_grad' % k) for k, p in tparams.iteritems()]
-    running_up2 = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_rup2' % k) for k, p in tparams.iteritems()]
-    running_grads2 = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_rgrad2' % k) for k, p in tparams.iteritems()]
+    zipped_grads = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_grad' % k) for k, p in tparams.items()]
+    running_up2 = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_rup2' % k) for k, p in tparams.items()]
+    running_grads2 = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_rgrad2' % k) for k, p in tparams.items()]
 
     zgup = [(zg, g) for zg, g in zip(zipped_grads, grads)]
     rg2up = [(rg2, 0.95 * rg2 + 0.05 * (g ** 2)) for rg2, g in zip(running_grads2, grads)]
@@ -244,7 +244,7 @@ def calculate_cost(test_model, dataset, options):
     n_batches = int(np.ceil(float(len(dataset[0])) / float(batchSize)))
     costSum = 0.0
     dataCount = 0
-    for index in xrange(n_batches):
+    for index in range(n_batches):
         batchX = dataset[0][index*batchSize:(index+1)*batchSize]
         batchY = dataset[1][index*batchSize:(index+1)*batchSize]
         x, y, mask, lengths = padMatrix(batchX, batchY, options)
@@ -260,7 +260,7 @@ def print2file(buf, outFile):
 
 def build_tree(treeFile):
     treeMap = pickle.load(open(treeFile, 'rb'))
-    ancestors = np.array(treeMap.values()).astype('int32')
+    ancestors = np.array(list(treeMap.values())).astype('int32')
     ancSize = ancestors.shape[1]
     leaves = []
     for k in treeMap.keys():
@@ -298,31 +298,31 @@ def train_GRAM(
         leavesList.append(sharedLeaves)
         ancestorsList.append(sharedAncestors)
     
-    print 'Building the model ... ',
+    print('Building the model ... '),
     params = init_params(options)
     tparams = init_tparams(params)
     use_noise, x, y, mask, lengths, cost, cost_noreg, y_hat =  build_model(tparams, leavesList, ancestorsList, options)
     get_cost = theano.function(inputs=[x, y, mask, lengths], outputs=cost_noreg, name='get_cost')
-    print 'done!!'
+    print('done!!')
     
-    print 'Constructing the optimizer ... ',
-    grads = T.grad(cost, wrt=tparams.values())
+    print('Constructing the optimizer ... '),
+    grads = T.grad(cost, wrt=list(tparams.values()))
     f_grad_shared, f_update = adadelta(tparams, grads, x, y, mask, lengths, cost)
-    print 'done!!'
+    print('done!!')
 
-    print 'Loading data ... ',
+    print('Loading data ... '),
     trainSet, validSet, testSet = load_data(seqFile, labelFile)
     n_batches = int(np.ceil(float(len(trainSet[0])) / float(batchSize)))
-    print 'done!!'
+    print('done!!')
 
-    print 'Optimization start !!'
+    print('Optimization start !!')
     bestTrainCost = 0.0
     bestValidCost = 100000.0
     bestTestCost = 0.0
     epochDuration = 0.0
     bestEpoch = 0
     logFile = outFile + '.log'
-    for epoch in xrange(max_epochs):
+    for epoch in range(max_epochs):
         iteration = 0
         costVec = []
         startTime = time.time()
@@ -337,7 +337,7 @@ def train_GRAM(
 
             if iteration % 100 == 0 and verbose:
                 buf = 'Epoch:%d, Iteration:%d/%d, Train_Cost:%f' % (epoch, iteration, n_batches, costValue)
-                print buf
+                print(buf)
             iteration += 1
         duration = time.time() - startTime
         use_noise.set_value(0.)
@@ -345,7 +345,7 @@ def train_GRAM(
         validCost = calculate_cost(get_cost, validSet, options)
         testCost = calculate_cost(get_cost, testSet, options)
         buf = 'Epoch:%d, Duration:%f, Train_Cost:%f, Valid_Cost:%f, Test_Cost:%f' % (epoch, duration, trainCost, validCost, testCost)
-        print buf
+        print(buf)
         print2file(buf, logFile)
         epochDuration += duration
         if validCost < bestValidCost:
@@ -356,7 +356,7 @@ def train_GRAM(
             tempParams = unzip(tparams)
             np.savez_compressed(outFile + '.' + str(epoch), **tempParams)
     buf = 'Best Epoch:%d, Avg_Duration:%f, Train_Cost:%f, Valid_Cost:%f, Test_Cost:%f' % (bestEpoch, epochDuration/max_epochs, bestTrainCost, bestValidCost, bestTestCost)
-    print buf
+    print(buf)
     print2file(buf, logFile)
 
 def parse_arguments(parser):
@@ -388,7 +388,7 @@ def calculate_dimSize(seqFile):
 
 def get_rootCode(treeFile):
     tree = pickle.load(open(treeFile, 'rb'))
-    rootCode = tree.values()[0][1]
+    rootCode = list(tree.values())[0][1]
     return rootCode
 
 if __name__ == '__main__':

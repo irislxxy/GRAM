@@ -7,7 +7,7 @@ import theano.tensor as T
 from theano import config
 from theano.ifelse import ifelse
 
-import cPickle as pickle
+import pickle
 
 from collections import OrderedDict
 
@@ -16,7 +16,7 @@ def numpy_floatX(data):
 
 def unzip(zipped):
 	new_params = OrderedDict()
-	for k, v in zipped.iteritems():
+	for k, v in zipped.items():
 		new_params[k] = v.get_value()
 	return new_params
 
@@ -38,8 +38,8 @@ def init_params(options):
 
 def init_tparams(params):
 	tparams = OrderedDict()
-	for k, v in params.iteritems():
-		tparams[k] = theano.shared(v, name=k)
+	for k, v in params.items():
+		tparams[k] = theano.shared(v, name=k) # theano.shared()
 	return tparams
 
 def build_model(tparams, options):
@@ -51,9 +51,9 @@ def build_model(tparams, options):
 	return weightVector, iVector, jVector, cost.sum()
 
 def adadelta(tparams, grads, weightVector, iVector, jVector, cost):
-	zipped_grads = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_grad' % k) for k, p in tparams.iteritems()]
-	running_up2 = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_rup2' % k) for k, p in tparams.iteritems()]
-	running_grads2 = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_rgrad2' % k) for k, p in tparams.iteritems()]
+	zipped_grads = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_grad' % k) for k, p in tparams.items()]
+	running_up2 = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_rup2' % k) for k, p in tparams.items()]
+	running_grads2 = [theano.shared(p.get_value() * numpy_floatX(0.), name='%s_rgrad2' % k) for k, p in tparams.items()]
 
 	zgup = [(zg, g) for zg, g in zip(zipped_grads, grads)]
 	rg2up = [(rg2, 0.95 * rg2 + 0.05 * (g ** 2)) for rg2, g in zip(running_grads2, grads)]
@@ -62,7 +62,7 @@ def adadelta(tparams, grads, weightVector, iVector, jVector, cost):
 
 	updir = [-T.sqrt(ru2 + 1e-6) / T.sqrt(rg2 + 1e-6) * zg for zg, ru2, rg2 in zip(zipped_grads, running_up2, running_grads2)]
 	ru2up = [(ru2, 0.95 * ru2 + 0.05 * (ud ** 2)) for ru2, ud in zip(running_up2, updir)]
-	param_up = [(p, p + ud) for p, ud in zip(tparams.values(), updir)]
+	param_up = [(p, p + ud) for p, ud in zip(tparams.values(), updir)] # 将可迭代的对象作为参数，将对象中对应的元素打包成一个个元组，然后返回由这些元组组成的列表
 
 	f_update = theano.function([], [], updates=ru2up + param_up, on_unused_input='ignore', name='adadelta_f_update')
 
@@ -79,7 +79,7 @@ def load_data(infile):
 	I = []
 	J = []
 	Weight = []
-	for key, value in cooccurMap.iteritems():
+	for key, value in cooccurMap.items():
 		I.append(key[0])
 		J.append(key[1])
 		Weight.append(weightFunction(value))
@@ -94,23 +94,23 @@ def print2file(buf, outFile):
 	outfd.close()
 
 def train_glove(infile, inputSize=20000, batchSize=100, dimensionSize=100, maxEpochs=1000, outfile='result', x_max=100, alpha=0.75):
-	options = locals().copy()
-	print 'initializing parameters'
+	options = locals().copy() # locals(): 以字典类型返回当前位置的全部局部变量
+	print('initializing parameters')
 	params = init_params(options)
 	tparams = init_tparams(params)
 
-	print 'loading data'
+	print('loading data')
 	I, J, Weight = load_data(infile)
 	n_batches = int(np.ceil(float(I.get_value(borrow=True).shape[0]) / float(batchSize)))
 
-	print 'building models'
+	print('building models')
 	weightVector, iVector, jVector, cost = build_model(tparams, options)
-	grads = T.grad(cost, wrt=tparams.values())
+	grads = T.grad(cost, wrt=list(tparams.values()))
 	f_grad_shared, f_update = adadelta(tparams, grads, weightVector, iVector, jVector, cost)
 
 	logFile = outfile + '.log'
-	print 'training start'
-	for epoch in xrange(maxEpochs):
+	print('training start')
+	for epoch in range(maxEpochs):
 		costVector = []
 		iteration = 0
 		for batchIndex in random.sample(range(n_batches), n_batches):
@@ -122,19 +122,19 @@ def train_glove(infile, inputSize=20000, batchSize=100, dimensionSize=100, maxEp
 
 			if (iteration % 1000 == 0):
 				buf = 'epoch:%d, iteration:%d/%d, cost:%f' % (epoch, iteration, n_batches, cost)
-				print buf
+				print(buf)
 				print2file(buf, logFile)
 			iteration += 1
 		trainCost = np.mean(costVector)
 		buf = 'epoch:%d, cost:%f' % (epoch, trainCost)
-		print buf
+		print(buf)
 		print2file(buf, logFile)
 		tempParams = unzip(tparams)
 		np.savez_compressed(outfile + '.' + str(epoch), **tempParams)
 
 def get_rootCode(treeFile):
 	tree = pickle.load(open(treeFile, 'rb'))
-	return tree.values()[0][1]
+	return list(tree.values())[0][1]
 
 if __name__=='__main__':
 	infile = sys.argv[1]

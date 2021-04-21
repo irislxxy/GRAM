@@ -1,0 +1,15 @@
+.DS_Store
+process_mimic/ADMISSIONS.csv
+process_mimic/DIAGNOSES_ICD.csv
+process_mimic/mimic.pids
+process_mimic/mimic.dates
+process_mimic/mimic.seqs
+process_mimic/mimic.types
+process_mimic/mimic.3digitICD9.seqs
+process_mimic/mimic.3digitICD9.types
+build_trees/tree.seqs
+build_trees/tree.types
+build_trees/*.pk
+train_embedding/cooccurrenceMap.pk
+train_embedding/embedding.*.npz
+gram/output.*.npz
