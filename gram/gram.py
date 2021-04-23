@@ -97,10 +97,13 @@ def gru_layer(tparams, emb, options):
 
     return results
 
+# 计算注意力权重
 def generate_attention(tparams, leaves, ancestors):
+    # f(ei,ej)
     attentionInput = T.concatenate([tparams['W_emb'][leaves], tparams['W_emb'][ancestors]], axis=2)
     mlpOutput = T.tanh(T.dot(attentionInput, tparams['W_attention']) + tparams['b_attention']) 
     preAttention = T.dot(mlpOutput, tparams['v_attention'])
+    # softmax f(ei,ej)
     attention = T.nnet.softmax(preAttention)
     return attention
     
@@ -123,6 +126,7 @@ def build_model(tparams, leavesList, ancestorsList, options):
     n_timesteps = x.shape[0]
     n_samples = x.shape[1]
 
+    # 计算最终表达形式 gi = sum(a_{ij} * ej)
     embList = []
     for leaves, ancestors in zip(leavesList, ancestorsList):
         tempAttention = generate_attention(tparams, leaves, ancestors)
@@ -131,11 +135,13 @@ def build_model(tparams, leavesList, ancestorsList, options):
 
     emb = T.concatenate(embList, axis=0)
 
+    # 预测模型
     x_emb = T.tanh(T.dot(x, emb))
     hidden = gru_layer(tparams, x_emb, options)
     hidden = dropout_layer(hidden, use_noise, trng, dropoutRate)
     y_hat = softmax_layer(tparams, hidden) * mask[:,:,None]
 
+    # 计算损失
     logEps = 1e-8
     cross_entropy = -(y * T.log(y_hat + logEps) + (1. - y) * T.log(1. - y_hat + logEps))
     output_loglikelihood = cross_entropy.sum(axis=2).sum(axis=0) / lengths
@@ -221,18 +227,21 @@ def adadelta(tparams, grads, x, y, mask, lengths, cost):
 
     return f_grad_shared, f_update
 
+# V_{n-1}和label_{n}对应
 def padMatrix(seqs, labels, options):
     lengths = np.array([len(seq) for seq in seqs]) - 1
     n_samples = len(seqs)
     maxlen = np.max(lengths)
 
-    x = np.zeros((maxlen, n_samples, options['inputDimSize'])).astype(config.floatX)
-    y = np.zeros((maxlen, n_samples, options['numClass'])).astype(config.floatX)
+    x = np.zeros((maxlen, n_samples, options['inputDimSize'])).astype(config.floatX) # 诊断编码数量
+    y = np.zeros((maxlen, n_samples, options['numClass'])).astype(config.floatX) # 标签数量
     mask = np.zeros((maxlen, n_samples)).astype(config.floatX)
 
     for idx, (seq, lseq) in enumerate(zip(seqs,labels)):
-        for xvec, subseq in zip(x[:,idx,:], seq[:-1]): xvec[subseq] = 1.
-        for yvec, subseq in zip(y[:,idx,:], lseq[1:]): yvec[subseq] = 1.
+        for xvec, subseq in zip(x[:,idx,:], seq[:-1]): 
+            xvec[subseq] = 1.
+        for yvec, subseq in zip(y[:,idx,:], lseq[1:]): 
+            yvec[subseq] = 1.
         mask[:lengths[idx], idx] = 1.
 
     lengths = np.array(lengths, dtype=config.floatX)
@@ -258,6 +267,7 @@ def print2file(buf, outFile):
     outfd.write(buf + '\n')
     outfd.close()
 
+# 匹配叶子节点和其路径上的所有节点
 def build_tree(treeFile):
     treeMap = pickle.load(open(treeFile, 'rb'))
     ancestors = np.array(list(treeMap.values())).astype('int32')
@@ -267,6 +277,15 @@ def build_tree(treeFile):
         leaves.append([k] * ancSize)
     leaves = np.array(leaves).astype('int32')
     return leaves, ancestors
+    
+    """
+    FiveMap example:
+    {0: [0, 1670, 942, 943, 945, 951], 1: [1, 1670, 942, 957, 960, 963]}
+    ancestors = array([[0, 1670,  942,  943,  945,  951], [1, 1670,  942,  957,  960,  963]], dtype=int32)
+    ancSize = 6
+    leaves = array([[0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1]], dtype=int32)
+    theano.shared(): https://www.tutorialspoint.com/theano/theano_shared_variables.htm
+    """
 
 def train_GRAM(
     seqFile = 'seqFile.txt',
@@ -291,8 +310,8 @@ def train_GRAM(
 
     leavesList = []
     ancestorsList = []
-    for i in range(5, 0, -1): # An ICD9 diagnosis code can have at most five ancestors (including the artificial root) when using CCS multi-level grouper. 
-        leaves, ancestors = build_tree(treeFile+'.level'+str(i)+'.pk')
+    for i in range(5, 0, -1): # 使用ccs最多五个祖先（包含root）
+        leaves, ancestors = build_tree(treeFile+'.level'+str(i)+'.pk') 
         sharedLeaves = theano.shared(leaves, name='leaves'+str(i))
         sharedAncestors = theano.shared(ancestors, name='ancestors'+str(i))
         leavesList.append(sharedLeaves)

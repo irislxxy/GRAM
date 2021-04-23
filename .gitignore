@@ -12,4 +12,6 @@ build_trees/tree.types
 build_trees/*.pk
 train_embedding/cooccurrenceMap.pk
 train_embedding/embedding.*.npz
+train_embedding/embedding.log
 gram/output.*.npz
+gram/output.log

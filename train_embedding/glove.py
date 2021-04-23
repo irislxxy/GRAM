@@ -39,7 +39,7 @@ def init_params(options):
 def init_tparams(params):
 	tparams = OrderedDict()
 	for k, v in params.items():
-		tparams[k] = theano.shared(v, name=k) # theano.shared()
+		tparams[k] = theano.shared(v, name=k)
 	return tparams
 
 def build_model(tparams, options):
