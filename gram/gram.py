@@ -13,7 +13,7 @@ import theano.tensor as T
 from theano import config
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
-_TEST_RATIO = 0.2
+_TEST_RATIO = 0.15
 _VALIDATION_RATIO = 0.1
 
 def unzip(zipped):
@@ -233,12 +233,12 @@ def padMatrix(seqs, labels, options):
     n_samples = len(seqs)
     maxlen = np.max(lengths)
 
-    x = np.zeros((maxlen, n_samples, options['inputDimSize'])).astype(config.floatX) # 诊断编码数量
-    y = np.zeros((maxlen, n_samples, options['numClass'])).astype(config.floatX) # 标签数量
+    x = np.zeros((maxlen, n_samples, options['inputDimSize'])).astype(config.floatX) 
+    y = np.zeros((maxlen, n_samples, options['numClass'])).astype(config.floatX) 
     mask = np.zeros((maxlen, n_samples)).astype(config.floatX)
 
     for idx, (seq, lseq) in enumerate(zip(seqs,labels)):
-        for xvec, subseq in zip(x[:,idx,:], seq[:-1]): 
+        for xvec, subseq in zip(x[:,idx,:], seq[:-1]): #将列表中对应元素打包为元组，返回由这些元组组成的列表，长度与最短的列表一致 
             xvec[subseq] = 1.
         for yvec, subseq in zip(y[:,idx,:], lseq[1:]): 
             yvec[subseq] = 1.
@@ -261,6 +261,14 @@ def calculate_cost(test_model, dataset, options):
         costSum += cost * len(batchX)
         dataCount += len(batchX)
     return costSum / dataCount
+
+def calculate_pred(test_model, dataset, options):
+    x = dataset[0]
+    y = dataset[1]
+    batchSize = options['batchSize']
+    x, y, mask, lengths = padMatrix(x, y, options)
+    prediction = test_model(x, mask)
+    return prediction 
 
 def print2file(buf, outFile):
     outfd = open(outFile, 'a')
@@ -317,24 +325,24 @@ def train_GRAM(
         leavesList.append(sharedLeaves)
         ancestorsList.append(sharedAncestors)
     
-    print('Building the model ... '),
+    print('Building the model'),
     params = init_params(options)
     tparams = init_tparams(params)
     use_noise, x, y, mask, lengths, cost, cost_noreg, y_hat =  build_model(tparams, leavesList, ancestorsList, options)
     get_cost = theano.function(inputs=[x, y, mask, lengths], outputs=cost_noreg, name='get_cost')
-    print('done!!')
+    get_prediction = theano.function(inputs=[x, mask], outputs=y_hat, name='get_prediction')
     
-    print('Constructing the optimizer ... '),
+    print('Constructing the optimizer'),
     grads = T.grad(cost, wrt=list(tparams.values()))
     f_grad_shared, f_update = adadelta(tparams, grads, x, y, mask, lengths, cost)
-    print('done!!')
 
-    print('Loading data ... '),
+    print('Loading data'),
     trainSet, validSet, testSet = load_data(seqFile, labelFile)
     n_batches = int(np.ceil(float(len(trainSet[0])) / float(batchSize)))
-    print('done!!')
-
-    print('Optimization start !!')
+    pickle.dump(trainSet, open('trainSet', 'wb'), -1)
+    pickle.dump(testSet, open('testSet', 'wb'), -1)
+    
+    print('Optimization')
     bestTrainCost = 0.0
     bestValidCost = 100000.0
     bestTestCost = 0.0
@@ -353,7 +361,7 @@ def train_GRAM(
             costValue = f_grad_shared(x, y, mask, lengths)
             f_update()
             costVec.append(costValue)
-
+            
             if iteration % 100 == 0 and verbose:
                 buf = 'Epoch:%d, Iteration:%d/%d, Train_Cost:%f' % (epoch, iteration, n_batches, costValue)
                 print(buf)
@@ -372,11 +380,18 @@ def train_GRAM(
             bestTestCost = testCost
             bestTrainCost = trainCost
             bestEpoch = epoch
+            bestParams = tparams
             tempParams = unzip(tparams)
             np.savez_compressed(outFile + '.' + str(epoch), **tempParams)
     buf = 'Best Epoch:%d, Avg_Duration:%f, Train_Cost:%f, Valid_Cost:%f, Test_Cost:%f' % (bestEpoch, epochDuration/max_epochs, bestTrainCost, bestValidCost, bestTestCost)
     print(buf)
     print2file(buf, logFile)
+
+    print('Making predictions')
+    tparams = bestParams
+    prediction = calculate_pred(get_prediction, testSet, options)
+    print(prediction)
+    pickle.dump(prediction, open('testPred', 'wb'), -1)
 
 def parse_arguments(parser):
     parser.add_argument('seq_file', type=str, metavar='<visit_file>', help='The path to the Pickled file containing visit information of patients')

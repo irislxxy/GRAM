@@ -133,7 +133,7 @@ if __name__ == '__main__':
         else:
             code1 = types[desc1]
             twoMap[icdCode] = [icdCode, rootCode, code1]
-    
+
     # 重新映射数字-诊断编码（只有mimic编码改变，祖先不变）
     newFiveMap = {}
     newFourMap = {}

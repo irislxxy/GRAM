@@ -166,7 +166,7 @@ if __name__ == '__main__':
                     newVisit.append(types_3digit[code])
             newPatient.append(newVisit)
         newSeqs_3digit.append(newPatient)
-
+        
     # pickle.dump(obj, file, protocol): If a negative number is specified, HIGHEST_PROTOCOL is selected.
     pickle.dump(pids, open(outFile+'.pids', 'wb'), -1)
     pickle.dump(dates, open(outFile+'.dates', 'wb'), -1)

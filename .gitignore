@@ -15,3 +15,5 @@ train_embedding/embedding.*.npz
 train_embedding/embedding.log
 gram/output.*.npz
 gram/output.log
+*/.ipynb_checkpoints/*
+gram/testPred
